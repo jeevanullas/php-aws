@@ -13,19 +13,21 @@
         private $host;
         private $date;
         private $curlInfo;
+	private $resource;
 
-        public function __construct($key, $private_key, $host = 's3.amazonaws.com')
+        public function __construct($key, $private_key, $host = 's3.amazonaws.com', $resource = '/')
         {
             $this->key        = $key;
             $this->privateKey = $private_key;
             $this->host       = $host;
             $this->date       = gmdate('D, d M Y H:i:s T');
+	    $this->resource   = $resource;
             return true;
         }
 
         public function listBuckets()
         {
-            $request = array('verb' => 'GET', 'resource' => '/');
+            $request = array('verb' => 'GET', 'resource' => $this->resource);
             $result = $this->sendRequest($request);
             $xml = simplexml_load_string($result);
 
@@ -40,21 +42,21 @@
 
         public function createBucket($name)
         {
-            $request = array('verb' => 'PUT', 'resource' => "/$name/");
+            $request = array('verb' => 'PUT', 'resource' => $this->resource."/$name/");
             $result = $this->sendRequest($request);
             return $this->curlInfo['http_code'] == '200';
         }
 
         public function deleteBucket($name)
         {
-            $request = array('verb' => 'DELETE', 'resource' => "/$name/");
+            $request = array('verb' => 'DELETE', 'resource' => $this->resource."/$name/");
             $result = $this->sendRequest($request);
             return $this->curlInfo['http_code'] == '204';
         }
 
         public function getBucketLocation($name)
         {
-            $request = array('verb' => 'GET', 'resource' => "/$name/?location");
+            $request = array('verb' => 'GET', 'resource' => $this->resource."/$name/?location");
             $result = $this->sendRequest($request);
             $xml = simplexml_load_string($result);
 
@@ -79,7 +81,7 @@
                 if(strlen($q) > 0)
                     $q = '?' . $q;
 
-                $request = array('verb' => 'GET', 'resource' => "/$name/$q");
+                $request = array('verb' => 'GET', 'resource' => $this->resource."/$name/$q");
                 $result = $this->sendRequest($request);
                 $xml = simplexml_load_string($result);
 
@@ -107,7 +109,7 @@
             // x-amz-acl (private, public-read, public-read-write, authenticated-read)
 
             $request = array('verb' => 'PUT',
-                             'resource' => "/$bucket_name/$s3_path",
+                             'resource' => $this->resource."/$bucket_name/$s3_path",
                              'content-md5' => $this->base64(md5_file($fs_path)));
 
             $fh = fopen($fs_path, 'r');
@@ -138,14 +140,14 @@
 
         public function deleteObject($bucket_name, $s3_path)
         {
-            $request = array('verb' => 'DELETE', 'resource' => "/$bucket_name/$s3_path");
+            $request = array('verb' => 'DELETE', 'resource' => $this->resource."/$bucket_name/$s3_path");
             $result = $this->sendRequest($request);
             return $this->curlInfo['http_code'] == '204';
         }
 
         public function copyObject($bucket_name, $s3_path, $dest_bucket_name, $dest_s3_path)
         {
-            $request = array('verb' => 'PUT', 'resource' => "/$dest_bucket_name/$dest_s3_path");
+            $request = array('verb' => 'PUT', 'resource' => $this->resource."/$dest_bucket_name/$dest_s3_path");
             $headers = array('x-amz-copy-source' => "/$bucket_name/$s3_path");
             $result = $this->sendRequest($request, $headers);
 
@@ -161,7 +163,7 @@
 
         public function getObjectInfo($bucket_name, $s3_path)
         {
-            $request = array('verb' => 'HEAD', 'resource' => "/$bucket_name/$s3_path");
+            $request = array('verb' => 'HEAD', 'resource' => $this->resource."/$bucket_name/$s3_path");
             $curl_opts = array('CURLOPT_HEADER' => true, 'CURLOPT_NOBODY' => true);
             $result = $this->sendRequest($request, null, $curl_opts);
             $xml = @simplexml_load_string($result);
@@ -182,7 +184,7 @@
 
         public function downloadFile($bucket_name, $s3_path, $fs_path)
         {
-            $request = array('verb' => 'GET', 'resource' => "/$bucket_name/$s3_path");
+            $request = array('verb' => 'GET', 'resource' => $this->resource."/$bucket_name/$s3_path");
 
             $fh = fopen($fs_path, 'w');
             $curl_opts = array('CURLOPT_FILE' => $fh);
@@ -205,7 +207,7 @@
 		{
 			// $expires_on must be a GMT Unix timestamp
 
-			$request = array('verb' => 'GET', 'resource' => "/$bucket_name/$s3_path", 'date' => $expires_on);
+			$request = array('verb' => 'GET', 'resource' => $this->resource."/$bucket_name/$s3_path", 'date' => $expires_on);
 			$signature = urlencode($this->signature($request));
 			
 			$url = sprintf("http://%s.s3.amazonaws.com/%s?AWSAccessKeyId=%s&Expires=%s&Signature=%s",
@@ -233,7 +235,7 @@
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $request['verb']);
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            // curl_setopt($ch, CURLOPT_VERBOSE, true);
+            curl_setopt($ch, CURLOPT_VERBOSE, true);
 
             if(is_array($curl_opts))
             {
